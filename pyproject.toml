@@ -1,0 +1,10 @@
+[project]
+name = "core-addition-cli"
+version = "0.1.0"
+description = "A single-file CLI that sums numbers supplied as arguments (or via interactive/stdin prompt) using exact Decimal arithmetic."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
