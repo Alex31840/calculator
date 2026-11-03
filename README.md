@@ -1,7 +1,8 @@
 # core-addition-cli
 
 A single-file, standard-library-only Python command-line tool that adds
-numbers together using exact `decimal.Decimal` arithmetic.
+(and, via a `sub`/`subtract` subcommand, subtracts) numbers together using
+exact `decimal.Decimal` arithmetic.
 
 ## Requirements
 
@@ -81,6 +82,52 @@ python sum.py 2 abc xyz
 
 No sum is printed to stdout when any input token is invalid — there is no
 partial or "best guess" result.
+
+### Subtraction
+
+In addition to summing numbers, `sum.py` can also subtract them. Pass a
+leading `sub` (or `subtract`) subcommand before the numbers; the remaining
+numbers are subtracted in order, left to right, starting from the first
+one (not from zero):
+
+```sh
+python sum.py sub 10 5 2
+# 3   (10 - 5 - 2)
+```
+
+Negative numbers and decimals work the same way as for addition, and the
+result is exact `Decimal` arithmetic — never float:
+
+```sh
+python sum.py sub 10 -3.5
+# 13.5
+```
+
+A bare negative first argument is never mistaken for the subtract
+subcommand, so plain addition invocations like `python sum.py -5 3` are
+unaffected — only the literal words `sub`/`subtract` trigger subtraction.
+
+Interactive-prompt mode, empty-input handling, and invalid-token
+reporting all work identically to addition:
+
+```sh
+$ python sum.py sub
+No numbers were provided as arguments. Enter numbers to subtract separated by spaces: 10 5 2
+3
+```
+
+```sh
+python sum.py sub < /dev/null
+# stderr: Error: No numbers were provided.
+```
+
+```sh
+python sum.py sub 10 abc xyz
+# stderr: Error: Invalid number(s): 'abc', 'xyz'
+```
+
+As with addition, no result is printed when any input token is invalid,
+and all invalid tokens are reported together rather than just the first.
 
 ## Exit codes
 

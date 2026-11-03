@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""sum.py - single-file addition CLI.
+"""sum.py - single-file addition / subtraction CLI.
 
 Security/compliance note (encryption-everywhere rationale)
 ------------------------------------------------------------
@@ -17,14 +17,34 @@ machinery that would have nothing to encrypt.
 
 Interface / contract
 ---------------------
-  * CLI entrypoint   -> main()
-  * Input Parser     -> parse(tokens)
-  * Summation Engine -> sum_values(values)
-  * Output Formatter -> format_result(value)
+  * CLI entrypoint      -> main()
+  * Input Parser        -> parse(tokens)
+  * Summation Engine    -> sum_values(values)
+  * Subtraction Engine  -> subtract_values(values)
+  * Output Formatter    -> format_result(value)
 
 All arithmetic uses decimal.Decimal constructed directly from the original
 input strings (never via float), so that e.g. 0.1 + 0.2 renders as exactly
 0.3 rather than 0.30000000000000004.
+
+Operation selection
+--------------------
+By default (no recognised subcommand as the first argument) the script
+adds its numbers, exactly as before:
+
+    python sum.py 2 5 10          # -> 17
+
+To subtract instead, pass a leading "sub" or "subtract" subcommand. The
+remaining arguments are subtracted in order, left to right, starting from
+the first number (not from zero):
+
+    python sum.py sub 10 5 2      # -> 3   (10 - 5 - 2)
+    python sum.py subtract 10 -3.5  # -> 13.5
+
+A bare negative number as the very first argument (e.g. "python sum.py -5
+3") is never mistaken for a subcommand: only the exact words "sub" and
+"subtract" are recognised, so negative numbers continue to work for the
+addition path unchanged.
 """
 
 from __future__ import annotations
@@ -99,6 +119,28 @@ def sum_values(values: list[Decimal]) -> Decimal:
     return total
 
 
+def subtract_values(values: list[Decimal]) -> Decimal:
+    """Return the exact Decimal result of subtracting values[1:] from
+    values[0], in order: values[0] - values[1] - ... - values[n-1].
+
+    Unlike addition, subtraction has no neutral starting element, so the
+    accumulator starts at the *first* value rather than at zero (folding
+    from zero would incorrectly negate every term).
+
+    In practice this is only ever called with a non-empty list: parse()
+    raises NoNumbersProvidedError before an empty list can reach here,
+    same as for the addition path. If it is ever called with an empty
+    list directly (e.g. in a unit test), it returns Decimal("0") as a
+    defined-but-unreached fallback.
+    """
+    if not values:
+        return Decimal("0")
+    result = values[0]
+    for value in values[1:]:
+        result -= value
+    return result
+
+
 def format_result(value: Decimal) -> str:
     """Format a Decimal result for display, normalising trailing zeros
     while keeping an exact (non-scientific-notation) representation."""
@@ -114,10 +156,17 @@ def format_result(value: Decimal) -> str:
     return text
 
 
-def _read_interactive_tokens() -> list[str]:
+_SUBTRACT_SUBCOMMANDS = ("sub", "subtract")
+
+
+def _read_interactive_tokens(verb: str = "add") -> list[str]:
     """When no CLI arguments are given, try to read numbers from stdin
     (e.g. an interactive prompt). Returns the tokens found, or an empty
-    list if stdin has nothing usable (closed/empty)."""
+    list if stdin has nothing usable (closed/empty).
+
+    `verb` only tailors the prompt text ("add"/"subtract"); it has no
+    effect on parsing behaviour.
+    """
     if sys.stdin is None or sys.stdin.closed:
         return []
     try:
@@ -127,8 +176,10 @@ def _read_interactive_tokens() -> list[str]:
             data = sys.stdin.read()
         else:
             # Interactive terminal: prompt the user once.
-            sys.stderr.write("No numbers were provided as arguments. "
-                              "Enter numbers separated by spaces: ")
+            sys.stderr.write(
+                f"No numbers were provided as arguments. "
+                f"Enter numbers to {verb} separated by spaces: "
+            )
             sys.stderr.flush()
             data = sys.stdin.readline()
     except (OSError, ValueError):
@@ -138,17 +189,36 @@ def _read_interactive_tokens() -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint. Returns the process exit code (does not call
-    sys.exit itself, to keep it testable)."""
+    sys.exit itself, to keep it testable).
+
+    Dispatches between addition (default) and subtraction: if the first
+    argument is exactly "sub" or "subtract", the remaining arguments are
+    subtracted in order (first value minus the rest); otherwise all
+    arguments are treated as numbers to add, exactly as before. This
+    keeps `python sum.py -5 3` (a negative number first) meaning
+    addition, since only those two exact subcommand words are special.
+    """
     args = sys.argv[1:] if argv is None else argv
+    args = list(args)
+
+    subtract = False
+    if args and args[0] in _SUBTRACT_SUBCOMMANDS:
+        subtract = True
+        args = args[1:]
 
     try:
-        tokens = list(args)
+        tokens = args
         if not tokens:
-            tokens = _read_interactive_tokens()
+            tokens = _read_interactive_tokens(
+                "subtract" if subtract else "add"
+            )
 
         values = parse(tokens)
-        total = sum_values(values)
-        print(format_result(total))
+        if subtract:
+            result = subtract_values(values)
+        else:
+            result = sum_values(values)
+        print(format_result(result))
         return 0
 
     except NoNumbersProvidedError as exc:

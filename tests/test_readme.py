@@ -66,6 +66,38 @@ class TestInvalidTokenExample:
         assert "Invalid number(s): 'abc', 'xyz'" in text
 
 
+class TestSubtractionDocumented:
+    def test_contains_subtract_invocation_example(self):
+        text = _read_readme()
+        assert "python sum.py sub 10 5 2" in text
+
+    def test_contains_expected_output_for_subtract_example(self):
+        text = _read_readme()
+        assert re.search(r"python sum\.py sub 10 5 2\s*\n#\s*3", text)
+
+    def test_contains_subtract_negative_decimal_example(self):
+        text = _read_readme()
+        assert "python sum.py sub 10 -3.5" in text
+        assert re.search(r"python sum\.py sub 10 -3\.5\s*\n#\s*13\.5", text)
+
+    def test_contains_subtract_empty_input_example(self):
+        text = _read_readme()
+        assert "python sum.py sub < /dev/null" in text
+
+    def test_contains_subtract_invalid_token_example(self):
+        text = _read_readme()
+        assert "python sum.py sub 10 abc xyz" in text
+        # Reuses the same error-message phrasing as addition.
+        assert "Invalid number(s): 'abc', 'xyz'" in text
+
+    def test_addition_example_unchanged(self):
+        # Guard against the new section accidentally perturbing the
+        # pre-existing, exact-match addition example strings.
+        text = _read_readme()
+        assert "python sum.py 2 5 10" in text
+        assert re.search(r"python sum\.py 2 5 10\s*\n#\s*17", text)
+
+
 class TestPythonVersionRequirement:
     def test_states_minimum_python_version(self):
         text = _read_readme()
