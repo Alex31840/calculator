@@ -3,7 +3,28 @@
 A single-file, standard-library-only Python command-line tool that adds
 numbers together using exact `decimal.Decimal` arithmetic.
 
+## Requirements
+
+* **Python 3.10 or later** (see `requires-python = ">=3.10"` in
+  `pyproject.toml`). No third-party packages are required to run it.
+
+## Install / build
+
+There is nothing to build or install — `sum.py` is a single, dependency-free
+script. Just make sure a Python 3.10+ interpreter is on your `PATH`:
+
+```sh
+python3 --version   # must report 3.10 or higher
+```
+
+Optionally, if you also want to run the test suite, create a project-local
+virtual environment (see "Running the tests" below).
+
 ## Usage
+
+### Argument-passing mode
+
+Pass the numbers to add as command-line arguments:
 
 ```sh
 python sum.py 2 5 10
@@ -16,14 +37,39 @@ python sum.py 0.1 0.2
 # 0.3   (exact — not 0.30000000000000004)
 ```
 
-If you run it with no arguments, it will try to read numbers from stdin
-(prompting you if stdin is an interactive terminal). If no numbers can be
-obtained at all, it prints a clear message to stderr and exits non-zero:
+### Interactive-prompt mode
+
+If you run it with no arguments, it tries to read numbers from stdin
+instead. When stdin is an interactive terminal, it prints a prompt to
+stderr and reads one line of space-separated numbers:
 
 ```sh
-python sum.py
+$ python sum.py
+No numbers were provided as arguments. Enter numbers separated by spaces: 2 5 10
+17
+```
+
+When stdin is *not* a terminal (e.g. piped or redirected), the same
+no-argument invocation reads whatever numbers are available from stdin
+without printing the interactive prompt:
+
+```sh
+echo "2 5 10" | python sum.py
+# 17
+```
+
+### Empty-input case
+
+If no arguments are given *and* stdin has nothing usable (e.g. it is
+closed, empty, or immediately EOF), the script prints a clear message to
+stderr and exits non-zero:
+
+```sh
+python sum.py < /dev/null
 # stderr: Error: No numbers were provided.
 ```
+
+### Invalid-input case
 
 Invalid tokens are reported by name, and *all* invalid tokens are reported
 together rather than just the first one found:
