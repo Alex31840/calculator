@@ -1,8 +1,9 @@
 # core-addition-cli
 
 A single-file, standard-library-only Python command-line tool that adds
-(and, via an explicit `--subtract` flag, subtracts) numbers together using
-exact `decimal.Decimal` arithmetic.
+(and, via an explicit `--subtract` flag, subtracts, or via an explicit
+`--divide` flag, divides) numbers together using exact `decimal.Decimal`
+arithmetic.
 
 ## Requirements
 
@@ -133,6 +134,75 @@ python sum.py --subtract 10 abc xyz
 As with addition, no result is printed when any input token is invalid,
 and all invalid tokens are reported together rather than just the first.
 
+### Division
+
+In addition to summing and subtracting numbers, `sum.py` can also divide
+them. Pass an explicit `--divide` flag anywhere among the arguments; the
+remaining numbers are divided in order, left to right, starting from the
+first one (not from one):
+
+```sh
+python sum.py --divide 100 5 2
+# 10   (100 / 5 / 2)
+```
+
+Negative numbers and decimals work the same way as for addition and
+subtraction, and the result is exact `Decimal` arithmetic — never float:
+
+```sh
+python sum.py --divide 7 2
+# 3.5
+```
+
+Division is **never** triggered by a bare word like `div` or `divide` as
+the first argument, for the same reasons as subtraction: only the
+explicit `--divide` flag switches to division, so there is no
+accidental-trigger surface.
+
+If both `--subtract` and `--divide` are passed together, **`--divide`
+takes precedence**: the numbers are divided, and `--subtract` is ignored.
+This is an explicit, documented tie-break rather than undefined
+behaviour:
+
+```sh
+python sum.py --subtract --divide 100 5 2
+# 10   (division wins; the --subtract flag is ignored)
+```
+
+Interactive-prompt mode, empty-input handling, and invalid-token
+reporting all work identically to addition and subtraction:
+
+```sh
+$ python sum.py --divide
+No numbers were provided as arguments. Enter numbers to divide separated by spaces: 100 5 2
+10
+```
+
+```sh
+python sum.py --divide < /dev/null
+# stderr: Error: No numbers were provided.
+```
+
+```sh
+python sum.py --divide 10 abc xyz
+# stderr: Error: Invalid number(s): 'abc', 'xyz'
+```
+
+As with addition and subtraction, no result is printed when any input
+token is invalid, and all invalid tokens are reported together rather
+than just the first.
+
+#### Division by zero
+
+Dividing by zero is reported as a clean, named error rather than a raw
+traceback or the generic "unexpected error" message, and uses its own
+dedicated exit code (see "Exit codes" below):
+
+```sh
+python sum.py --divide 5 0
+# stderr: Error: Cannot divide by zero.
+```
+
 ## Exit codes
 
 | Code | Meaning                                             |
@@ -141,6 +211,7 @@ and all invalid tokens are reported together rather than just the first.
 | 1    | No numbers were provided (empty argv and empty/absent stdin) |
 | 2    | One or more input tokens could not be parsed as numbers |
 | 3    | An unexpected internal error occurred (caught, reported, never a raw traceback) |
+| 4    | Division by zero was attempted (`--divide` with a zero divisor) |
 
 ## Design notes
 

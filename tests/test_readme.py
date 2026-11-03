@@ -109,6 +109,63 @@ class TestSubtractionDocumented:
         assert re.search(r"python sum\.py 2 5 10\s*\n#\s*17", text)
 
 
+class TestDivisionDocumented:
+    def test_contains_divide_invocation_example(self):
+        text = _read_readme()
+        assert "python sum.py --divide 100 5 2" in text
+
+    def test_contains_expected_output_for_divide_example(self):
+        text = _read_readme()
+        assert re.search(r"python sum\.py --divide 100 5 2\s*\n#\s*10", text)
+
+    def test_contains_divide_decimal_example(self):
+        text = _read_readme()
+        assert "python sum.py --divide 7 2" in text
+        assert re.search(r"python sum\.py --divide 7 2\s*\n#\s*3\.5", text)
+
+    def test_contains_divide_empty_input_example(self):
+        text = _read_readme()
+        assert "python sum.py --divide < /dev/null" in text
+
+    def test_contains_divide_invalid_token_example(self):
+        text = _read_readme()
+        assert "python sum.py --divide 10 abc xyz" in text
+        assert "Invalid number(s): 'abc', 'xyz'" in text
+
+    def test_bare_divide_word_is_not_documented_as_a_trigger(self):
+        text = _read_readme()
+        assert "subcommand" not in text.lower()
+        assert re.search(r"python sum\.py divide 10 5 2\s*\n#\s*10", text) is None
+
+    def test_documents_division_by_zero_behaviour(self):
+        text = _read_readme()
+        assert "python sum.py --divide 5 0" in text
+        assert "Cannot divide by zero." in text
+
+    def test_documents_both_flags_precedence(self):
+        text = _read_readme()
+        lower = text.lower()
+        assert "--divide" in text and "--subtract" in text
+        assert "precedence" in lower or "wins" in lower
+
+    def test_exit_code_table_documents_division_by_zero(self):
+        text = _read_readme()
+        assert re.search(r"\|\s*4\s*\|", text)
+        assert "Division by zero" in text
+
+    def test_subtraction_example_unchanged(self):
+        # Guard against the new division section accidentally perturbing
+        # the pre-existing, exact-match subtraction example strings.
+        text = _read_readme()
+        assert "python sum.py --subtract 10 5 2" in text
+        assert re.search(r"python sum\.py --subtract 10 5 2\s*\n#\s*3", text)
+
+    def test_addition_example_unchanged(self):
+        text = _read_readme()
+        assert "python sum.py 2 5 10" in text
+        assert re.search(r"python sum\.py 2 5 10\s*\n#\s*17", text)
+
+
 class TestPythonVersionRequirement:
     def test_states_minimum_python_version(self):
         text = _read_readme()

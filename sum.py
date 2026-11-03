@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""sum.py - single-file addition / subtraction CLI.
+"""sum.py - single-file addition / subtraction / division CLI.
 
 Security/compliance note (encryption-everywhere rationale)
 ------------------------------------------------------------
@@ -21,6 +21,7 @@ Interface / contract
   * Input Parser        -> parse(tokens)
   * Summation Engine    -> sum_values(values)
   * Subtraction Engine  -> subtract_values(values)
+  * Division Engine     -> divide_values(values)
   * Output Formatter    -> format_result(value)
 
 All arithmetic uses decimal.Decimal constructed directly from the original
@@ -48,6 +49,21 @@ number). Only the explicit "--subtract" flag switches to subtraction, so
 there is no accidental-trigger surface: a plain positional argument can
 never be mistaken for the flag, and negative numbers (e.g. "python sum.py
 -5 3") continue to work for the addition path unchanged.
+
+To divide instead, pass an explicit "--divide" flag. The remaining
+arguments are divided in order, left to right, starting from the first
+number (not from one):
+
+    python sum.py --divide 100 5 2      # -> 10   (100 / 5 / 2)
+    python sum.py --divide 7 2          # -> 3.5
+
+Division is never triggered by a bare word either, for the same reasons
+as subtraction. If both "--subtract" and "--divide" are given at once,
+"--divide" takes precedence (division wins) and "--subtract" is ignored;
+this is an explicit, documented tie-break rather than undefined
+behaviour. Dividing by zero (e.g. "python sum.py --divide 5 0") is
+reported as a clean, named error rather than a raw traceback or the
+generic "unexpected error" path.
 """
 
 from __future__ import annotations
@@ -74,6 +90,20 @@ class NoNumbersProvidedError(Exception):
     """Raised when there are no numbers to sum at all."""
 
     def __init__(self, message: str = "No numbers were provided."):
+        super().__init__(message)
+
+
+class DivisionByZeroError(Exception):
+    """Raised when a division operation would divide by zero.
+
+    Kept distinct from Python's built-in ZeroDivisionError and from
+    decimal.DivisionByZero (which Decimal.__truediv__ raises) so that
+    main() can catch it explicitly and report a clean, named error with
+    its own dedicated exit code instead of falling through to the
+    generic "unexpected error" handler.
+    """
+
+    def __init__(self, message: str = "Cannot divide by zero."):
         super().__init__(message)
 
 
@@ -144,6 +174,35 @@ def subtract_values(values: list[Decimal]) -> Decimal:
     return result
 
 
+def divide_values(values: list[Decimal]) -> Decimal:
+    """Return the exact Decimal result of dividing values[0] by
+    values[1:], in order: values[0] / values[1] / ... / values[n-1].
+
+    Like subtraction, division has no neutral starting element, so the
+    accumulator starts at the *first* value rather than at one.
+
+    In practice this is only ever called with a non-empty list: parse()
+    raises NoNumbersProvidedError before an empty list can reach here,
+    same as for addition/subtraction. If it is ever called with an empty
+    list directly (e.g. in a unit test), it returns Decimal("0") as a
+    defined-but-unreached fallback, matching subtract_values.
+
+    Raises DivisionByZeroError if any divisor (values[1:]) is zero,
+    translating decimal.DivisionByZero/decimal.InvalidOperation (which
+    Decimal division raises for 0/0) into a single clean, named error
+    rather than letting either leak out as an unexpected exception.
+    """
+    if not values:
+        return Decimal("0")
+    result = values[0]
+    try:
+        for value in values[1:]:
+            result = result / value
+    except (decimal.DivisionByZero, decimal.InvalidOperation):
+        raise DivisionByZeroError() from None
+    return result
+
+
 def format_result(value: Decimal) -> str:
     """Format a Decimal result for display, normalising trailing zeros
     while keeping an exact (non-scientific-notation) representation."""
@@ -160,6 +219,7 @@ def format_result(value: Decimal) -> str:
 
 
 _SUBTRACT_FLAGS = ("--subtract",)
+_DIVIDE_FLAGS = ("--divide",)
 
 
 def _read_interactive_tokens(verb: str = "add") -> list[str]:
@@ -167,8 +227,8 @@ def _read_interactive_tokens(verb: str = "add") -> list[str]:
     (e.g. an interactive prompt). Returns the tokens found, or an empty
     list if stdin has nothing usable (closed/empty).
 
-    `verb` only tailors the prompt text ("add"/"subtract"); it has no
-    effect on parsing behaviour.
+    `verb` only tailors the prompt text ("add"/"subtract"/"divide"); it
+    has no effect on parsing behaviour.
     """
     if sys.stdin is None or sys.stdin.closed:
         return []
@@ -194,34 +254,47 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint. Returns the process exit code (does not call
     sys.exit itself, to keep it testable).
 
-    Dispatches between addition (default) and subtraction: if an explicit
-    "--subtract" flag is present among the arguments, it is removed from
-    the list and the remaining arguments are subtracted in order (first
-    value minus the rest); otherwise all arguments are treated as numbers
-    to add, exactly as before. There is no bare-word trigger: a plain
-    positional first argument (even the literal words "sub"/"subtract")
-    is never special-cased, so `python sum.py -5 3` (a negative number
-    first) and `python sum.py sub 10 5 2` (treated as four values to add,
-    which fails because "sub" is not a number) behave exactly like any
-    other addition invocation.
+    Dispatches between addition (default), subtraction, and division: if
+    an explicit "--subtract" and/or "--divide" flag is present among the
+    arguments, it is removed from the list and the remaining arguments
+    are combined accordingly (first value minus/divided-by the rest);
+    otherwise all arguments are treated as numbers to add, exactly as
+    before. There is no bare-word trigger: a plain positional first
+    argument (even the literal words "sub"/"subtract"/"divide") is never
+    special-cased, so `python sum.py -5 3` (a negative number first) and
+    `python sum.py sub 10 5 2` (treated as four values to add, which
+    fails because "sub" is not a number) behave exactly like any other
+    addition invocation.
+
+    If *both* "--subtract" and "--divide" are given at once, division
+    takes precedence: "--divide" wins and "--subtract" is silently
+    ignored (treated as a no-op flag), rather than leaving the outcome
+    undefined. This is an explicit, documented tie-break so that passing
+    both flags together never silently performs the "wrong" operation.
     """
     args = sys.argv[1:] if argv is None else argv
     args = list(args)
 
-    subtract = False
-    if any(flag in args for flag in _SUBTRACT_FLAGS):
-        subtract = True
-        args = [arg for arg in args if arg not in _SUBTRACT_FLAGS]
+    subtract = any(flag in args for flag in _SUBTRACT_FLAGS)
+    divide = any(flag in args for flag in _DIVIDE_FLAGS)
+    args = [
+        arg for arg in args
+        if arg not in _SUBTRACT_FLAGS and arg not in _DIVIDE_FLAGS
+    ]
+    if divide:
+        # --divide takes precedence when both flags are given.
+        subtract = False
 
     try:
         tokens = args
         if not tokens:
-            tokens = _read_interactive_tokens(
-                "subtract" if subtract else "add"
-            )
+            verb = "divide" if divide else ("subtract" if subtract else "add")
+            tokens = _read_interactive_tokens(verb)
 
         values = parse(tokens)
-        if subtract:
+        if divide:
+            result = divide_values(values)
+        elif subtract:
             result = subtract_values(values)
         else:
             result = sum_values(values)
@@ -235,6 +308,10 @@ def main(argv: list[str] | None = None) -> int:
     except ValidationError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
+
+    except DivisionByZeroError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 4
 
     except Exception as exc:  # noqa: BLE001 - last-resort safety net
         # Never let an unexpected exception surface as a raw traceback.
