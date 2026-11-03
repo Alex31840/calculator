@@ -29,22 +29,25 @@ input strings (never via float), so that e.g. 0.1 + 0.2 renders as exactly
 
 Operation selection
 --------------------
-By default (no recognised subcommand as the first argument) the script
+By default (no "--subtract" flag anywhere in the arguments) the script
 adds its numbers, exactly as before:
 
     python sum.py 2 5 10          # -> 17
 
-To subtract instead, pass a leading "sub" or "subtract" subcommand. The
-remaining arguments are subtracted in order, left to right, starting from
-the first number (not from zero):
+To subtract instead, pass an explicit "--subtract" flag. The remaining
+arguments are subtracted in order, left to right, starting from the first
+number (not from zero):
 
-    python sum.py sub 10 5 2      # -> 3   (10 - 5 - 2)
-    python sum.py subtract 10 -3.5  # -> 13.5
+    python sum.py --subtract 10 5 2      # -> 3   (10 - 5 - 2)
+    python sum.py --subtract 10 -3.5     # -> 13.5
 
-A bare negative number as the very first argument (e.g. "python sum.py -5
-3") is never mistaken for a subcommand: only the exact words "sub" and
-"subtract" are recognised, so negative numbers continue to work for the
-addition path unchanged.
+Subtraction is never triggered by a bare word like "sub" or "subtract" as
+the first argument (e.g. "python sum.py sub 10 5 2" just adds the three
+values "sub", 10, 5, 2 — which fails to parse since "sub" is not a
+number). Only the explicit "--subtract" flag switches to subtraction, so
+there is no accidental-trigger surface: a plain positional argument can
+never be mistaken for the flag, and negative numbers (e.g. "python sum.py
+-5 3") continue to work for the addition path unchanged.
 """
 
 from __future__ import annotations
@@ -156,7 +159,7 @@ def format_result(value: Decimal) -> str:
     return text
 
 
-_SUBTRACT_SUBCOMMANDS = ("sub", "subtract")
+_SUBTRACT_FLAGS = ("--subtract",)
 
 
 def _read_interactive_tokens(verb: str = "add") -> list[str]:
@@ -191,20 +194,24 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint. Returns the process exit code (does not call
     sys.exit itself, to keep it testable).
 
-    Dispatches between addition (default) and subtraction: if the first
-    argument is exactly "sub" or "subtract", the remaining arguments are
-    subtracted in order (first value minus the rest); otherwise all
-    arguments are treated as numbers to add, exactly as before. This
-    keeps `python sum.py -5 3` (a negative number first) meaning
-    addition, since only those two exact subcommand words are special.
+    Dispatches between addition (default) and subtraction: if an explicit
+    "--subtract" flag is present among the arguments, it is removed from
+    the list and the remaining arguments are subtracted in order (first
+    value minus the rest); otherwise all arguments are treated as numbers
+    to add, exactly as before. There is no bare-word trigger: a plain
+    positional first argument (even the literal words "sub"/"subtract")
+    is never special-cased, so `python sum.py -5 3` (a negative number
+    first) and `python sum.py sub 10 5 2` (treated as four values to add,
+    which fails because "sub" is not a number) behave exactly like any
+    other addition invocation.
     """
     args = sys.argv[1:] if argv is None else argv
     args = list(args)
 
     subtract = False
-    if args and args[0] in _SUBTRACT_SUBCOMMANDS:
+    if any(flag in args for flag in _SUBTRACT_FLAGS):
         subtract = True
-        args = args[1:]
+        args = [arg for arg in args if arg not in _SUBTRACT_FLAGS]
 
     try:
         tokens = args

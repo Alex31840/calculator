@@ -1,7 +1,7 @@
 # core-addition-cli
 
 A single-file, standard-library-only Python command-line tool that adds
-(and, via a `sub`/`subtract` subcommand, subtracts) numbers together using
+(and, via an explicit `--subtract` flag, subtracts) numbers together using
 exact `decimal.Decimal` arithmetic.
 
 ## Requirements
@@ -85,13 +85,13 @@ partial or "best guess" result.
 
 ### Subtraction
 
-In addition to summing numbers, `sum.py` can also subtract them. Pass a
-leading `sub` (or `subtract`) subcommand before the numbers; the remaining
+In addition to summing numbers, `sum.py` can also subtract them. Pass an
+explicit `--subtract` flag anywhere among the arguments; the remaining
 numbers are subtracted in order, left to right, starting from the first
 one (not from zero):
 
 ```sh
-python sum.py sub 10 5 2
+python sum.py --subtract 10 5 2
 # 3   (10 - 5 - 2)
 ```
 
@@ -99,30 +99,34 @@ Negative numbers and decimals work the same way as for addition, and the
 result is exact `Decimal` arithmetic — never float:
 
 ```sh
-python sum.py sub 10 -3.5
+python sum.py --subtract 10 -3.5
 # 13.5
 ```
 
-A bare negative first argument is never mistaken for the subtract
-subcommand, so plain addition invocations like `python sum.py -5 3` are
-unaffected — only the literal words `sub`/`subtract` trigger subtraction.
+Subtraction is **never** triggered by a bare word like `sub` or
+`subtract` as the first argument — `python sum.py sub 10 5 2` is treated
+as an addition invocation with `"sub"` as one of the tokens to parse
+(which fails, since `"sub"` is not a number). Only the explicit
+`--subtract` flag switches to subtraction, so there is no
+accidental-trigger surface, and plain addition invocations like
+`python sum.py -5 3` are unaffected.
 
 Interactive-prompt mode, empty-input handling, and invalid-token
 reporting all work identically to addition:
 
 ```sh
-$ python sum.py sub
+$ python sum.py --subtract
 No numbers were provided as arguments. Enter numbers to subtract separated by spaces: 10 5 2
 3
 ```
 
 ```sh
-python sum.py sub < /dev/null
+python sum.py --subtract < /dev/null
 # stderr: Error: No numbers were provided.
 ```
 
 ```sh
-python sum.py sub 10 abc xyz
+python sum.py --subtract 10 abc xyz
 # stderr: Error: Invalid number(s): 'abc', 'xyz'
 ```
 
