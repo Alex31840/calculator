@@ -133,6 +133,43 @@ class TestSubtractValues:
 
 
 # ---------------------------------------------------------------------------
+# divide_values()
+# ---------------------------------------------------------------------------
+
+class TestDivideValues:
+    def test_divides_in_order_from_first_value(self):
+        assert sum_module.divide_values(
+            [Decimal("100"), Decimal("5"), Decimal("2")]
+        ) == Decimal("10")
+
+    def test_divide_negative_and_decimal(self):
+        assert sum_module.divide_values(
+            [Decimal("7"), Decimal("2")]
+        ) == Decimal("3.5")
+
+    def test_divide_single_value_returns_itself(self):
+        assert sum_module.divide_values([Decimal("7")]) == Decimal("7")
+
+    def test_divide_of_empty_list_is_zero_fallback(self):
+        # Never reached via the CLI (parse() raises first), but defined.
+        assert sum_module.divide_values([]) == Decimal("0")
+
+    def test_divide_by_zero_raises_division_by_zero_error(self):
+        with pytest.raises(sum_module.DivisionByZeroError):
+            sum_module.divide_values([Decimal("5"), Decimal("0")])
+
+    def test_zero_divided_by_zero_raises_division_by_zero_error(self):
+        with pytest.raises(sum_module.DivisionByZeroError):
+            sum_module.divide_values([Decimal("0"), Decimal("0")])
+
+    def test_divide_by_zero_later_in_the_chain_raises(self):
+        with pytest.raises(sum_module.DivisionByZeroError):
+            sum_module.divide_values(
+                [Decimal("100"), Decimal("5"), Decimal("0")]
+            )
+
+
+# ---------------------------------------------------------------------------
 # format_result()
 # ---------------------------------------------------------------------------
 
@@ -257,6 +294,73 @@ class TestCliAcceptance:
         assert out.strip() == "17"
         assert code == 0
 
+    # -- division --------------------------------------------------------
+
+    def test_divide_basic_prints_10_and_exits_0(self):
+        code, out, err = run_cli(["--divide", "100", "5", "2"])
+        assert out.strip() == "10"
+        assert code == 0
+
+    def test_divide_flag_can_appear_after_numbers_too(self):
+        code, out, err = run_cli(["100", "5", "2", "--divide"])
+        assert out.strip() == "10"
+        assert code == 0
+
+    def test_divide_negative_and_decimal_prints_3_5(self):
+        code, out, err = run_cli(["--divide", "7", "2"])
+        assert out.strip() == "3.5"
+        assert code == 0
+
+    def test_divide_no_arguments_and_empty_stdin_reports_no_numbers(self):
+        code, out, err = run_cli(["--divide"], input_text="")
+        assert "No numbers were provided" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_divide_single_invalid_token_named_in_error(self):
+        code, out, err = run_cli(["--divide", "10", "abc"])
+        assert "abc" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_divide_multiple_invalid_tokens_both_named(self):
+        code, out, err = run_cli(["--divide", "2", "abc", "xyz"])
+        assert "abc" in err
+        assert "xyz" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_divide_by_zero_reports_clean_error_and_exits_4(self):
+        code, out, err = run_cli(["--divide", "5", "0"])
+        assert "Cannot divide by zero" in err
+        assert code == 4
+        assert out.strip() == ""
+
+    def test_divide_by_zero_does_not_print_traceback(self):
+        code, out, err = run_cli(["--divide", "5", "0"])
+        assert "Traceback" not in err
+
+    def test_both_subtract_and_divide_flags_divide_wins(self):
+        code, out, err = run_cli(["--subtract", "--divide", "100", "5", "2"])
+        assert out.strip() == "10"
+        assert code == 0
+
+    def test_both_divide_and_subtract_flags_order_independent(self):
+        code, out, err = run_cli(["--divide", "--subtract", "100", "5", "2"])
+        assert out.strip() == "10"
+        assert code == 0
+
+    def test_bare_divide_word_is_not_a_trigger_and_is_treated_as_addend(self):
+        code, out, err = run_cli(["divide", "10", "5", "2"])
+        assert "divide" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_addition_still_works_unchanged_after_divide_feature(self):
+        code, out, err = run_cli(["2", "5", "10"])
+        assert out.strip() == "17"
+        assert code == 0
+
 
 # ---------------------------------------------------------------------------
 # No file I/O
@@ -282,6 +386,9 @@ class TestNoFileIO:
         ["sub", "10", "5", "2"],
         ["sub", "10", "abc"],
         ["sub"],
+        ["--divide", "100", "5", "2"],
+        ["--divide", "5", "0"],
+        ["divide", "10", "5", "2"],
     ])
     def test_no_files_created_modified_or_deleted(self, args):
         before = self._snapshot(REPO_ROOT)
