@@ -106,6 +106,33 @@ class TestSumValues:
 
 
 # ---------------------------------------------------------------------------
+# subtract_values()
+# ---------------------------------------------------------------------------
+
+class TestSubtractValues:
+    def test_subtracts_in_order_from_first_value(self):
+        assert sum_module.subtract_values(
+            [Decimal("10"), Decimal("5"), Decimal("2")]
+        ) == Decimal("3")
+
+    def test_subtract_negative_and_decimal(self):
+        assert sum_module.subtract_values(
+            [Decimal("10"), Decimal("-3.5")]
+        ) == Decimal("13.5")
+
+    def test_subtract_is_exact_decimal_not_float_artifact(self):
+        result = sum_module.subtract_values([Decimal("0.3"), Decimal("0.1")])
+        assert result == Decimal("0.2")
+
+    def test_subtract_single_value_returns_itself(self):
+        assert sum_module.subtract_values([Decimal("7")]) == Decimal("7")
+
+    def test_subtract_of_empty_list_is_zero_fallback(self):
+        # Never reached via the CLI (parse() raises first), but defined.
+        assert sum_module.subtract_values([]) == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
 # format_result()
 # ---------------------------------------------------------------------------
 
@@ -169,6 +196,53 @@ class TestCliAcceptance:
         assert out.strip() == "-7"
         assert code == 0
 
+    def test_negative_first_argument_still_means_addition(self):
+        # "-5" is not the "sub"/"subtract" subcommand, so this must add.
+        code, out, err = run_cli(["-5", "3"])
+        assert out.strip() == "-2"
+        assert code == 0
+
+    # -- subtraction ---------------------------------------------------
+
+    def test_subtract_basic_prints_3_and_exits_0(self):
+        code, out, err = run_cli(["sub", "10", "5", "2"])
+        assert out.strip() == "3"
+        assert code == 0
+
+    def test_subtract_subcommand_alias_also_works(self):
+        code, out, err = run_cli(["subtract", "10", "5", "2"])
+        assert out.strip() == "3"
+        assert code == 0
+
+    def test_subtract_negative_and_decimal_prints_13_5(self):
+        code, out, err = run_cli(["sub", "10", "-3.5"])
+        assert out.strip() == "13.5"
+        assert code == 0
+
+    def test_subtract_no_arguments_and_empty_stdin_reports_no_numbers(self):
+        code, out, err = run_cli(["sub"], input_text="")
+        assert "No numbers were provided" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_subtract_single_invalid_token_named_in_error(self):
+        code, out, err = run_cli(["sub", "10", "abc"])
+        assert "abc" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_subtract_multiple_invalid_tokens_both_named(self):
+        code, out, err = run_cli(["sub", "2", "abc", "xyz"])
+        assert "abc" in err
+        assert "xyz" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_addition_still_works_unchanged_after_subtract_feature(self):
+        code, out, err = run_cli(["2", "5", "10"])
+        assert out.strip() == "17"
+        assert code == 0
+
 
 # ---------------------------------------------------------------------------
 # No file I/O
@@ -191,6 +265,9 @@ class TestNoFileIO:
         ["2", "5", "10"],
         ["2", "abc", "5"],
         [],
+        ["sub", "10", "5", "2"],
+        ["sub", "10", "abc"],
+        ["sub"],
     ])
     def test_no_files_created_modified_or_deleted(self, args):
         before = self._snapshot(REPO_ROOT)
