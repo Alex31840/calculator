@@ -197,42 +197,56 @@ class TestCliAcceptance:
         assert code == 0
 
     def test_negative_first_argument_still_means_addition(self):
-        # "-5" is not the "sub"/"subtract" subcommand, so this must add.
+        # "-5" is not the "--subtract" flag, so this must add.
         code, out, err = run_cli(["-5", "3"])
         assert out.strip() == "-2"
         assert code == 0
 
+    def test_bare_sub_word_is_not_a_trigger_and_is_treated_as_addend(self):
+        # A bare "sub"/"subtract" first argument must NOT switch to
+        # subtraction anymore -- it is just an (invalid) addend.
+        code, out, err = run_cli(["sub", "10", "5", "2"])
+        assert "sub" in err
+        assert code != 0
+        assert out.strip() == ""
+
+    def test_bare_subtract_word_is_not_a_trigger_and_is_treated_as_addend(self):
+        code, out, err = run_cli(["subtract", "10", "5", "2"])
+        assert "subtract" in err
+        assert code != 0
+        assert out.strip() == ""
+
     # -- subtraction ---------------------------------------------------
 
     def test_subtract_basic_prints_3_and_exits_0(self):
-        code, out, err = run_cli(["sub", "10", "5", "2"])
+        code, out, err = run_cli(["--subtract", "10", "5", "2"])
         assert out.strip() == "3"
         assert code == 0
 
-    def test_subtract_subcommand_alias_also_works(self):
-        code, out, err = run_cli(["subtract", "10", "5", "2"])
+    def test_subtract_flag_can_appear_after_numbers_too(self):
+        code, out, err = run_cli(["10", "5", "2", "--subtract"])
         assert out.strip() == "3"
         assert code == 0
 
     def test_subtract_negative_and_decimal_prints_13_5(self):
-        code, out, err = run_cli(["sub", "10", "-3.5"])
+        code, out, err = run_cli(["--subtract", "10", "-3.5"])
         assert out.strip() == "13.5"
         assert code == 0
 
     def test_subtract_no_arguments_and_empty_stdin_reports_no_numbers(self):
-        code, out, err = run_cli(["sub"], input_text="")
+        code, out, err = run_cli(["--subtract"], input_text="")
         assert "No numbers were provided" in err
         assert code != 0
         assert out.strip() == ""
 
     def test_subtract_single_invalid_token_named_in_error(self):
-        code, out, err = run_cli(["sub", "10", "abc"])
+        code, out, err = run_cli(["--subtract", "10", "abc"])
         assert "abc" in err
         assert code != 0
         assert out.strip() == ""
 
     def test_subtract_multiple_invalid_tokens_both_named(self):
-        code, out, err = run_cli(["sub", "2", "abc", "xyz"])
+        code, out, err = run_cli(["--subtract", "2", "abc", "xyz"])
         assert "abc" in err
         assert "xyz" in err
         assert code != 0

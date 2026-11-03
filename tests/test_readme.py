@@ -69,26 +69,37 @@ class TestInvalidTokenExample:
 class TestSubtractionDocumented:
     def test_contains_subtract_invocation_example(self):
         text = _read_readme()
-        assert "python sum.py sub 10 5 2" in text
+        assert "python sum.py --subtract 10 5 2" in text
 
     def test_contains_expected_output_for_subtract_example(self):
         text = _read_readme()
-        assert re.search(r"python sum\.py sub 10 5 2\s*\n#\s*3", text)
+        assert re.search(r"python sum\.py --subtract 10 5 2\s*\n#\s*3", text)
 
     def test_contains_subtract_negative_decimal_example(self):
         text = _read_readme()
-        assert "python sum.py sub 10 -3.5" in text
-        assert re.search(r"python sum\.py sub 10 -3\.5\s*\n#\s*13\.5", text)
+        assert "python sum.py --subtract 10 -3.5" in text
+        assert re.search(
+            r"python sum\.py --subtract 10 -3\.5\s*\n#\s*13\.5", text
+        )
 
     def test_contains_subtract_empty_input_example(self):
         text = _read_readme()
-        assert "python sum.py sub < /dev/null" in text
+        assert "python sum.py --subtract < /dev/null" in text
 
     def test_contains_subtract_invalid_token_example(self):
         text = _read_readme()
-        assert "python sum.py sub 10 abc xyz" in text
+        assert "python sum.py --subtract 10 abc xyz" in text
         # Reuses the same error-message phrasing as addition.
         assert "Invalid number(s): 'abc', 'xyz'" in text
+
+    def test_bare_sub_word_is_not_documented_as_a_trigger(self):
+        # The old bare-word "sub"/"subtract" subcommand trigger must not
+        # be documented as *working* anymore -- only the explicit
+        # --subtract flag is. (The README may still mention the bare word
+        # to explain that it no longer triggers subtraction.)
+        text = _read_readme()
+        assert "subcommand" not in text.lower()
+        assert re.search(r"python sum\.py sub 10 5 2\s*\n#\s*3", text) is None
 
     def test_addition_example_unchanged(self):
         # Guard against the new section accidentally perturbing the
